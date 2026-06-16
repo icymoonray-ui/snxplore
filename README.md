@@ -1,5 +1,8 @@
 # snxplore
 
+[![CI](https://github.com/icymoonray-ui/snxplore/actions/workflows/ci.yml/badge.svg)](https://github.com/icymoonray-ui/snxplore/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > A read-first, agent-native CLI for understanding any ServiceNow instance — built only on the documented Now Platform Table API.
 
 `snxplore` (sn + *explore*) lets a ServiceNow admin point at an arbitrary instance and ask **"what is this table, how does it work, and who can touch it?"** — schema, forms-era metadata, business logic, automation, and access control — without needing to be a platform expert. It emits clean JSON for agents and readable tables for humans.
@@ -12,10 +15,16 @@ It is deliberately the **inverse of ServiceNow's official tooling**: where the N
 
 ## Install
 
-Requires **Go 1.26+**. The binary is a single, statically-linked, **CGO-free** executable (pure-Go SQLite), so it cross-compiles cleanly.
+The binary is a single, statically-linked, **CGO-free** executable (pure-Go SQLite), so it cross-compiles cleanly.
+
+Prebuilt binaries for Linux/macOS/Windows (amd64 + arm64) are attached to each [release](https://github.com/icymoonray-ui/snxplore/releases). Or, with **Go 1.26+**:
 
 ```bash
-git clone <repo> snxplore && cd snxplore
+# install the latest tagged version
+go install github.com/icymoonray-ui/snxplore@latest
+
+# …or build from source
+git clone https://github.com/icymoonray-ui/snxplore && cd snxplore
 go build -o snxplore .
 
 # cross-compile, e.g. for Linux:
