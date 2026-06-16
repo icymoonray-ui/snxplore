@@ -1,0 +1,15 @@
+# Vendored third-party Claude Code skills / tools (installed locally, not part of the project)
+.claude/skills/
+.claude/memsearch/
+
+# Machine-specific local config & state
+.mcp.json
+.claude/settings.local.json
+.memsearch/
+.memsearch.toml
+
+# Go build artifacts
+/snxplore
+*.test
+*.out
+dist/
