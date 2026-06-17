@@ -50,7 +50,8 @@ func newTableCmd() *cobra.Command {
 }
 
 func newTableListCmd() *cobra.Command {
-	var limit int
+	var limit, pageSize int
+	var all bool
 	c := &cobra.Command{
 		Use:   "list",
 		Short: "List tables on the instance (sys_db_object)",
@@ -60,18 +61,35 @@ func newTableListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			recs, err := cl.Get(cc.Context(), "sys_db_object", snclient.GetOptions{
+			opt := snclient.GetOptions{
 				Fields: []string{"name", "label", "super_class", "sys_scope"},
 				Query:  "ORDERBYname",
 				Limit:  limit,
-			})
+			}
+			r := renderer()
+
+			if all {
+				recs, err := cl.GetAll(cc.Context(), "sys_db_object", opt, pageSize)
+				if err != nil {
+					return err
+				}
+				return r.Emit(tableList(recs))
+			}
+
+			page, err := cl.GetPage(cc.Context(), "sys_db_object", opt)
 			if err != nil {
 				return err
 			}
-			return renderer().Emit(tableList(recs))
+			if page.Total > len(page.Records) {
+				r.Note(fmt.Sprintf("showing %d of %d tables — use --all to list every page",
+					len(page.Records), page.Total))
+			}
+			return r.Emit(tableList(page.Records))
 		},
 	}
 	c.Flags().IntVar(&limit, "limit", 0, "max tables to return (0 = server default)")
+	c.Flags().BoolVar(&all, "all", false, "list every table by paging (ignores --limit)")
+	c.Flags().IntVar(&pageSize, "page-size", 0, "page size for --all (0 = default 1000)")
 	return c
 }
 

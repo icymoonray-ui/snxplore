@@ -72,6 +72,19 @@ func (c *Client) buildURL(table string, opt GetOptions) string {
 	return u
 }
 
+// defaultPageSize is the page size used by GetAll when none is given. The Table
+// API caps a single response at the instance's glide.rest.batch_size /
+// sysparm_limit default (commonly 10000); GetAll pages under that ceiling.
+const defaultPageSize = 1000
+
+// Page is one page of records plus the server's reported total match count.
+type Page struct {
+	Records []Record
+	// Total is the X-Total-Count header (the count of all rows matching the
+	// query, ignoring limit/offset), or -1 if the header was absent.
+	Total int
+}
+
 // tableResponse is the envelope returned by the Table API.
 type tableResponse struct {
 	Result []Record `json:"result"`
@@ -86,8 +99,20 @@ type errorResponse struct {
 	Status string `json:"status"`
 }
 
-// Get reads records from a table.
+// Get reads records from a table (a single page — subject to the server's limit
+// or sysparm_limit). Use GetPage to also learn the total match count, or GetAll
+// to transparently page through every matching record.
 func (c *Client) Get(ctx context.Context, table string, opt GetOptions) ([]Record, error) {
+	p, err := c.GetPage(ctx, table, opt)
+	if err != nil {
+		return nil, err
+	}
+	return p.Records, nil
+}
+
+// GetPage reads one page and reports the server's X-Total-Count, letting callers
+// detect truncation (Total > len(Records)) without a second request.
+func (c *Client) GetPage(ctx context.Context, table string, opt GetOptions) (*Page, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.buildURL(table, opt), nil)
 	if err != nil {
 		return nil, output.Errorf("request_build", output.ExitError, "build request: %v", err)
@@ -109,7 +134,39 @@ func (c *Client) Get(ctx context.Context, table string, opt GetOptions) ([]Recor
 	if err := json.Unmarshal(body, &tr); err != nil {
 		return nil, output.Errorf("decode", output.ExitAPI, "decode response from %s: %v", table, err)
 	}
-	return tr.Result, nil
+	total := -1
+	if n, err := strconv.Atoi(resp.Header.Get("X-Total-Count")); err == nil {
+		total = n
+	}
+	return &Page{Records: tr.Result, Total: total}, nil
+}
+
+// GetAll pages through every record matching opt, transparently following the
+// offset until a short page is returned. opt.Limit is ignored (GetAll owns
+// paging); opt.Offset is honored as the starting point. pageSize <= 0 uses
+// defaultPageSize. On a mid-stream error the records gathered so far are
+// returned alongside the error.
+func (c *Client) GetAll(ctx context.Context, table string, opt GetOptions, pageSize int) ([]Record, error) {
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+	var all []Record
+	offset := opt.Offset
+	for {
+		page := opt
+		page.Limit = pageSize
+		page.Offset = offset
+		p, err := c.GetPage(ctx, table, page)
+		if err != nil {
+			return all, err
+		}
+		all = append(all, p.Records...)
+		if len(p.Records) < pageSize {
+			break
+		}
+		offset += len(p.Records)
+	}
+	return all, nil
 }
 
 // apiError maps a non-200 response to a coded output.Error.

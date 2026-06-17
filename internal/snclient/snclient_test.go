@@ -3,10 +3,12 @@ package snclient
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 
 	"github.com/icymoonray-ui/snxplore/internal/output"
@@ -88,6 +90,119 @@ func TestGetUnauthorized(t *testing.T) {
 	}
 	if ce.Code != "auth_unauthorized" {
 		t.Errorf("code = %q, want auth_unauthorized", ce.Code)
+	}
+}
+
+// TestGetPageTotal verifies GetPage surfaces X-Total-Count so callers can
+// detect truncation (more rows match than were returned in this page).
+func TestGetPageTotal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Total-Count", "4200")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"result":[{"name":"a"},{"name":"b"}]}`)
+	}))
+	defer srv.Close()
+
+	p, err := New(srv.URL, srv.Client()).GetPage(context.Background(), "sys_db_object", GetOptions{})
+	if err != nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if p.Total != 4200 {
+		t.Errorf("Total = %d, want 4200", p.Total)
+	}
+	if len(p.Records) != 2 {
+		t.Errorf("Records = %d, want 2", len(p.Records))
+	}
+}
+
+// TestGetPageNoTotalHeader checks Total is -1 when the header is absent, so a
+// missing count is distinguishable from a real zero.
+func TestGetPageNoTotalHeader(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"result":[]}`)
+	}))
+	defer srv.Close()
+
+	p, err := New(srv.URL, srv.Client()).GetPage(context.Background(), "x", GetOptions{})
+	if err != nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if p.Total != -1 {
+		t.Errorf("Total = %d, want -1 (header absent)", p.Total)
+	}
+}
+
+// TestGetAllPaging verifies GetAll walks the offset until a short page and
+// concatenates every record across pages.
+func TestGetAllPaging(t *testing.T) {
+	const total, pageSize = 23, 10
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		offset, _ := strconv.Atoi(r.URL.Query().Get("sysparm_offset"))
+		limit, _ := strconv.Atoi(r.URL.Query().Get("sysparm_limit"))
+		if limit != pageSize {
+			t.Errorf("page %d: limit = %d, want %d", requests, limit, pageSize)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"result":[`))
+		for i := offset; i < offset+limit && i < total; i++ {
+			if i > offset {
+				w.Write([]byte(","))
+			}
+			fmt.Fprintf(w, `{"name":"rec%d"}`, i)
+		}
+		w.Write([]byte(`]}`))
+	}))
+	defer srv.Close()
+
+	recs, err := New(srv.URL, srv.Client()).GetAll(context.Background(), "x", GetOptions{}, pageSize)
+	if err != nil {
+		t.Fatalf("GetAll: %v", err)
+	}
+	if len(recs) != total {
+		t.Fatalf("got %d records, want %d", len(recs), total)
+	}
+	// 23 rows / 10 per page = pages of 10,10,3 → 3 requests (last is short).
+	if requests != 3 {
+		t.Errorf("made %d requests, want 3", requests)
+	}
+	if recs[0].Str("name") != "rec0" || recs[total-1].Str("name") != "rec22" {
+		t.Errorf("boundary records wrong: first=%q last=%q", recs[0].Str("name"), recs[total-1].Str("name"))
+	}
+}
+
+// TestGetAllExactMultiple checks the terminating extra request when the total is
+// an exact multiple of the page size (final page is empty, not short-by-content).
+func TestGetAllExactMultiple(t *testing.T) {
+	const total, pageSize = 20, 10
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		offset, _ := strconv.Atoi(r.URL.Query().Get("sysparm_offset"))
+		limit, _ := strconv.Atoi(r.URL.Query().Get("sysparm_limit"))
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"result":[`))
+		for i := offset; i < offset+limit && i < total; i++ {
+			if i > offset {
+				w.Write([]byte(","))
+			}
+			fmt.Fprintf(w, `{"name":"rec%d"}`, i)
+		}
+		w.Write([]byte(`]}`))
+	}))
+	defer srv.Close()
+
+	recs, err := New(srv.URL, srv.Client()).GetAll(context.Background(), "x", GetOptions{}, pageSize)
+	if err != nil {
+		t.Fatalf("GetAll: %v", err)
+	}
+	if len(recs) != total {
+		t.Fatalf("got %d records, want %d", len(recs), total)
+	}
+	// pages of 10,10, then an empty page signals the end → 3 requests.
+	if requests != 3 {
+		t.Errorf("made %d requests, want 3", requests)
 	}
 }
 
