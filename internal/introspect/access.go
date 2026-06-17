@@ -110,9 +110,12 @@ func aclRoles(ctx context.Context, c *snclient.Client, ids []string) (map[string
 	return out, nil
 }
 
-// isPermission reports whether err is an auth/authorization failure (used to
-// decide when to degrade gracefully rather than fail).
+// isPermission reports whether err is a 403 Forbidden (authenticated but
+// lacking the role) — the case where ACL introspection should degrade
+// gracefully. A 401 (not authenticated) is NOT treated as a permission issue;
+// it propagates as a hard error so bad credentials aren't masked as
+// "security_admin required".
 func isPermission(err error) bool {
 	var ce *output.Error
-	return errors.As(err, &ce) && ce.Exit == output.ExitAuth
+	return errors.As(err, &ce) && ce.Code == "auth_forbidden"
 }

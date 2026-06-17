@@ -123,8 +123,12 @@ func apiError(table string, status int, body []byte) error {
 		}
 	}
 	switch status {
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return output.Errorf("auth_failed", output.ExitAuth, "%s (table %q): %s", http.StatusText(status), table, msg)
+	case http.StatusUnauthorized:
+		// 401 = not authenticated (bad/missing credentials) — a hard error.
+		return output.Errorf("auth_unauthorized", output.ExitAuth, "not authenticated (table %q): %s", table, msg)
+	case http.StatusForbidden:
+		// 403 = authenticated but lacking the role — callers may degrade on this.
+		return output.Errorf("auth_forbidden", output.ExitAuth, "forbidden (table %q): %s", table, msg)
 	case http.StatusNotFound:
 		return output.Errorf("not_found", output.ExitNotFound, "table %q not found: %s", table, msg)
 	default:

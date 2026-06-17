@@ -15,6 +15,9 @@ func newLogicCmd() *cobra.Command {
 		Long:  "logic lists the server-side business rules (sys_script) and client scripts (sys_script_client) bound to a table, in execution order (by when/type, then order).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cc *cobra.Command, args []string) error {
+			if err := validateTableName(args[0]); err != nil {
+				return err
+			}
 			cl, err := clientForProfile(cc.Context())
 			if err != nil {
 				return err

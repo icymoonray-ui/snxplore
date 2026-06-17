@@ -49,5 +49,6 @@ func clientForProfile(ctx context.Context) (*snclient.Client, error) {
 	if err != nil {
 		return nil, output.Errorf("auth", output.ExitAuth, "%v", err)
 	}
+	hc.Timeout = flagTimeout // bounds the full round-trip on both Basic and OAuth clients (0 = no timeout)
 	return snclient.New(base, hc), nil
 }
