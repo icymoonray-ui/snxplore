@@ -13,6 +13,9 @@ func newFlowsCmd() *cobra.Command {
 		Long:  "flows lists legacy Workflow records (wf_workflow) bound to a table. Flow Designer flow→table binding is not reliably resolvable via the Table API and is reported via a note pending live-instance verification.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cc *cobra.Command, args []string) error {
+			if err := validateTableName(args[0]); err != nil {
+				return err
+			}
 			cl, err := clientForProfile(cc.Context())
 			if err != nil {
 				return err

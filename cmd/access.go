@@ -15,6 +15,9 @@ func newAccessCmd() *cobra.Command {
 		Long:  "access lists the ACL rules protecting a table and the roles each requires. Reading ACLs over the Table API often needs the security_admin role; when unavailable, the command degrades with a note rather than failing.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cc *cobra.Command, args []string) error {
+			if err := validateTableName(args[0]); err != nil {
+				return err
+			}
 			cl, err := clientForProfile(cc.Context())
 			if err != nil {
 				return err

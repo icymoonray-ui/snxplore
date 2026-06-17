@@ -94,6 +94,8 @@ snxplore table incident --output json | jq '.schema.fields[].element'
 0 ok · 1 error · 2 usage · 3 auth · 4 not-found · 5 api-error
 ```
 
+Global flags: `--output json|table`, `--profile <name>`, `--timeout <dur>` (default `30s`, `0` to disable), `--verbose`.
+
 ## What it reads
 
 `snxplore` treats the self-describing platform as the source of truth, querying metadata tables:

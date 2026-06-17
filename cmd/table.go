@@ -24,6 +24,9 @@ func newTableCmd() *cobra.Command {
 			if len(args) == 0 {
 				return cc.Help()
 			}
+			if err := validateTableName(args[0]); err != nil {
+				return err
+			}
 			cl, err := clientForProfile(cc.Context())
 			if err != nil {
 				return err

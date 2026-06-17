@@ -19,6 +19,9 @@ func newQueryCmd() *cobra.Command {
 		Long:  "query is the raw substrate: a thin, generic read over /api/now/table/{table} with the standard sysparm_* options.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cc *cobra.Command, args []string) error {
+			if err := validateTableName(args[0]); err != nil {
+				return err
+			}
 			cl, err := clientForProfile(cc.Context())
 			if err != nil {
 				return err

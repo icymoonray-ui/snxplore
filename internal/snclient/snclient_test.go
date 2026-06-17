@@ -67,7 +67,7 @@ func TestGet(t *testing.T) {
 	}
 }
 
-func TestGetAuthError(t *testing.T) {
+func TestGetUnauthorized(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		io.WriteString(w, `{"error":{"message":"User Not Authenticated","detail":"Required to provide Auth information"},"status":"failure"}`)
@@ -86,7 +86,26 @@ func TestGetAuthError(t *testing.T) {
 	if ce.Exit != output.ExitAuth {
 		t.Errorf("exit = %d, want %d", ce.Exit, output.ExitAuth)
 	}
-	if ce.Code != "auth_failed" {
-		t.Errorf("code = %q", ce.Code)
+	if ce.Code != "auth_unauthorized" {
+		t.Errorf("code = %q, want auth_unauthorized", ce.Code)
+	}
+}
+
+// TestGetForbidden checks 403 maps to auth_forbidden, distinct from 401 — so
+// callers can degrade on forbidden without masking bad credentials.
+func TestGetForbidden(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		io.WriteString(w, `{"error":{"message":"Insufficient rights"},"status":"failure"}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL, srv.Client()).Get(context.Background(), "sys_security_acl", GetOptions{})
+	var ce *output.Error
+	if !errors.As(err, &ce) {
+		t.Fatalf("want *output.Error, got %T", err)
+	}
+	if ce.Code != "auth_forbidden" || ce.Exit != output.ExitAuth {
+		t.Errorf("got code=%q exit=%d, want auth_forbidden / ExitAuth", ce.Code, ce.Exit)
 	}
 }

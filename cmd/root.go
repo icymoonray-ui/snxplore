@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"os"
+	"time"
 
 	"github.com/icymoonray-ui/snxplore/internal/output"
 	"github.com/spf13/cobra"
@@ -13,6 +14,7 @@ var (
 	flagOutput  string
 	flagProfile string
 	flagVerbose bool
+	flagTimeout time.Duration
 )
 
 // NewRootCmd builds the root command and registers subcommands.
@@ -30,6 +32,7 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagOutput, "output", "table", "output format: json|table")
 	root.PersistentFlags().StringVar(&flagProfile, "profile", "default", "instance profile to use")
 	root.PersistentFlags().BoolVarP(&flagVerbose, "verbose", "v", false, "verbose logging to stderr")
+	root.PersistentFlags().DurationVar(&flagTimeout, "timeout", 30*time.Second, "HTTP request timeout (0 = no timeout)")
 
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newTableCmd())

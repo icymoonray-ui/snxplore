@@ -13,6 +13,9 @@ func newSchemaCmd() *cobra.Command {
 		Long:  "schema lists every column on a table — including fields inherited from parent tables — by walking the sys_db_object super_class chain (which the Table API does not resolve on its own). Each field shows the table that defines it (ORIGIN).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cc *cobra.Command, args []string) error {
+			if err := validateTableName(args[0]); err != nil {
+				return err
+			}
 			cl, err := clientForProfile(cc.Context())
 			if err != nil {
 				return err
