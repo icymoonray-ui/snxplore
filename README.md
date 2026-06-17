@@ -66,8 +66,11 @@ snxplore table incident
 # Schema with inherited fields resolved (walks the super_class chain)
 snxplore schema incident
 
-# Raw generic read of any table
+# Raw generic read of any table (one page; warns on stderr if results are truncated)
 snxplore query incident -q "active=true^priority=1" --fields number,short_description --limit 20
+
+# Page through every matching record (--all overrides --limit; tune with --page-size)
+snxplore query incident -q "active=true" --fields number,short_description --all
 
 # What logic runs on a table (business rules + client scripts, in order)
 snxplore logic incident

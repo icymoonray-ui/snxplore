@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -12,7 +13,8 @@ import (
 
 func newQueryCmd() *cobra.Command {
 	var query, fields, display string
-	var limit, offset int
+	var limit, offset, pageSize int
+	var all bool
 	c := &cobra.Command{
 		Use:   "query <table>",
 		Short: "Read records from any table via the generic Table API",
@@ -30,17 +32,32 @@ func newQueryCmd() *cobra.Command {
 			if fields != "" {
 				fl = strings.Split(fields, ",")
 			}
-			recs, err := cl.Get(cc.Context(), args[0], snclient.GetOptions{
+			opt := snclient.GetOptions{
 				Query:        query,
 				Fields:       fl,
 				Limit:        limit,
 				Offset:       offset,
 				DisplayValue: display,
-			})
+			}
+			r := renderer()
+
+			if all {
+				recs, err := cl.GetAll(cc.Context(), args[0], opt, pageSize)
+				if err != nil {
+					return err
+				}
+				return r.Emit(recordsView{records: recs, columns: fl})
+			}
+
+			page, err := cl.GetPage(cc.Context(), args[0], opt)
 			if err != nil {
 				return err
 			}
-			return renderer().Emit(recordsView{records: recs, columns: fl})
+			if page.Total > len(page.Records) {
+				r.Note(fmt.Sprintf("showing %d of %d matching records — use --all to fetch every page",
+					len(page.Records), page.Total))
+			}
+			return r.Emit(recordsView{records: page.Records, columns: fl})
 		},
 	}
 	c.Flags().StringVarP(&query, "query", "q", "", "encoded query (sysparm_query)")
@@ -48,6 +65,8 @@ func newQueryCmd() *cobra.Command {
 	c.Flags().IntVar(&limit, "limit", 0, "max records (sysparm_limit)")
 	c.Flags().IntVar(&offset, "offset", 0, "record offset (sysparm_offset)")
 	c.Flags().StringVar(&display, "display-value", "", "sysparm_display_value: false|true|all")
+	c.Flags().BoolVar(&all, "all", false, "fetch every matching record by paging (ignores --limit)")
+	c.Flags().IntVar(&pageSize, "page-size", 0, "page size for --all (0 = default 1000)")
 	return c
 }
 
